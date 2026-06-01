@@ -31,27 +31,24 @@ git pull
 If Python is installed:
 
 ```powershell
+python -m pip install -r requirements.txt
 python page_count_rip.py
 ```
 
 Expected result: a small "Page Count RIP" window opens and shows placeholder values.
+Click `Test SSH Status` to connect to `192.168.100.200` as `root/root` and run
+read-only discovery commands.
 
-## 4. Configure Read-Only SSH Status Test
+## 4. Optional Read-Only SSH Override
 
-Copy the example config:
+The app works without a config file. To override host, credentials, commands, or
+log paths, copy the example config:
 
 ```powershell
 Copy-Item printer_config.example.json printer_config.json
 ```
 
-Edit `printer_config.json` with the two printer Ethernet IP addresses and SSH usernames.
-Keep credentials out of that file. Set passwords in PowerShell instead:
-
-```powershell
-$env:PAGE_COUNT_RIP_PRINTER_1_PASSWORD="FIRST_PASSWORD"
-$env:PAGE_COUNT_RIP_PRINTER_2_PASSWORD="SECOND_PASSWORD"
-python page_count_rip.py
-```
+Edit `printer_config.json` with the printer Ethernet IP addresses and SSH credentials.
 
 Click `Test SSH Status`.
 

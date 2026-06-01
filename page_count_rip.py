@@ -107,7 +107,7 @@ class PageCountRipApp(tk.Tk):
             font=("Consolas", 9),
         )
         self.output_box.grid(row=4, column=0, sticky="ew")
-        self.output_box.insert(tk.END, "Copy printer_config.example.json to printer_config.json, fill in the hosts/usernames, set password environment variables, then click Test SSH Status.\n")
+        self.output_box.insert(tk.END, "Default connection is 192.168.100.200 as root/root. Click Test SSH Status to run read-only discovery commands.\n")
         self.output_box.configure(state=tk.DISABLED)
 
     def _add_field(

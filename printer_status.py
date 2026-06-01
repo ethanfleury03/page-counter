@@ -19,6 +19,25 @@ CONFIG_PATH = Path("printer_config.json")
 EXAMPLE_CONFIG_PATH = Path("printer_config.example.json")
 CONNECT_TIMEOUT_SECONDS = 5
 COMMAND_TIMEOUT_SECONDS = 8
+DEFAULT_CONNECTIONS = (
+    {
+        "name": "Printer Controller",
+        "host": "192.168.100.200",
+        "port": 22,
+        "username": "root",
+        "password": "root",
+        "status_commands": [
+            "hostname",
+            "date",
+            "pwd",
+            "ls /",
+            "ls /var",
+            "ls /var/log",
+            "find /var/log -maxdepth 2 -type f 2>/dev/null | sort",
+        ],
+        "log_paths": [],
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -27,6 +46,7 @@ class ConnectionConfig:
     host: str
     port: int
     username: str
+    password: str
     password_env: str
     status_commands: tuple[str, ...]
     log_paths: tuple[str, ...]
@@ -43,9 +63,7 @@ class ConnectionResult:
 
 def load_config(path: Path = CONFIG_PATH) -> list[ConnectionConfig]:
     if not path.exists():
-        raise FileNotFoundError(
-            f"Missing {path}. Copy {EXAMPLE_CONFIG_PATH} to {path} and fill it in."
-        )
+        return [_parse_connection(item) for item in DEFAULT_CONNECTIONS]
 
     data = json.loads(path.read_text(encoding="utf-8"))
     connections = data.get("connections", [])
@@ -69,7 +87,7 @@ def poll_connection(connection: ConnectionConfig) -> ConnectionResult:
             command_output="",
         )
 
-    password = os.environ.get(connection.password_env, "")
+    password = os.environ.get(connection.password_env, "") or connection.password
     if not password:
         return ConnectionResult(
             name=connection.name,
@@ -122,6 +140,7 @@ def _parse_connection(item: dict[str, Any]) -> ConnectionConfig:
         host=str(item["host"]),
         port=int(item.get("port", 22)),
         username=str(item["username"]),
+        password=str(item.get("password", "")),
         password_env=str(item.get("password_env") or "PAGE_COUNT_RIP_PRINTER_PASSWORD"),
         status_commands=tuple(_safe_commands(item.get("status_commands", []))),
         log_paths=tuple(str(path) for path in item.get("log_paths", [])),
@@ -129,7 +148,7 @@ def _parse_connection(item: dict[str, Any]) -> ConnectionConfig:
 
 
 def _safe_commands(commands: list[Any]) -> list[str]:
-    safe_prefixes = ("hostname", "date", "pwd", "ls ", "tail ", "cat ", "grep ")
+    safe_prefixes = ("hostname", "date", "pwd", "ls ", "tail ", "cat ", "grep ", "find ")
     safe_commands = []
     for command in commands:
         command_text = str(command).strip()

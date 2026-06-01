@@ -7,7 +7,8 @@ Current prototype:
 - Displays `Job ID`
 - Displays `Total Pages Sent`
 - Tests read-only SSH status against one or two printer/controller Ethernet links
-- Runs only allowlisted read commands from `printer_config.json`
+- Runs only allowlisted read commands
+- Defaults to `192.168.100.200` with SSH `root/root`
 
 ## Run Locally
 
@@ -16,26 +17,19 @@ python3 -m pip install -r requirements.txt
 python3 page_count_rip.py
 ```
 
-## Configure Printer SSH Status
+Then click `Test SSH Status`.
 
-Copy the example config:
+## Optional Printer SSH Override
+
+The app works without a config file. To override host, credentials, commands, or
+log paths, copy the example config:
 
 ```bash
 cp printer_config.example.json printer_config.json
 ```
 
-Edit `printer_config.json` with the two printer/controller Ethernet IPs and SSH usernames.
-Do not commit `printer_config.json`; it is machine-specific.
-
-Set passwords as environment variables so credentials are not stored in git:
-
-```powershell
-$env:PAGE_COUNT_RIP_PRINTER_1_PASSWORD="password for ethernet 1"
-$env:PAGE_COUNT_RIP_PRINTER_2_PASSWORD="password for ethernet 2"
-python page_count_rip.py
-```
-
-Then click `Test SSH Status`.
+Edit `printer_config.json`. Do not commit `printer_config.json`; it is
+machine-specific.
 
 ## Build Windows EXE
 
