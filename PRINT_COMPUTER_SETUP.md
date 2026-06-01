@@ -37,7 +37,16 @@ python page_count_rip.py
 
 Expected result: a small "Page Count RIP" window opens and shows placeholder values.
 Click `Test SSH Status` to connect to `192.168.100.200` as `root/root` and run
-read-only discovery commands.
+read-only discovery commands. The default status test now tails likely printer
+logs discovered on the controller:
+
+- `/pes_client.log`
+- `/var/log/pdl/pdl.log`
+- `/var/log/gymea/gymea.log`
+- `/var/log/kareela/kareela.log`
+- `/var/log/kenmare/kenmare.log`
+- `/var/log/kirrawee/kirrawee.log`
+- `/var/log/messages`
 
 ## 4. Optional Read-Only SSH Override
 
@@ -56,6 +65,10 @@ This test only checks TCP port 22, logs in over SSH, and runs allowlisted read
 commands from the config file. It does not send print jobs or fire hardware.
 
 If SSH succeeds, save the output so we can identify the real status/log paths.
+
+Best next test: click `Test SSH Status`, run a tiny scrap/calibration job with
+the normal printer software, then click `Test SSH Status` again. Compare the log
+tail before/after to find the file and line format that tracks jobs/pages.
 
 ## 5. Build Windows EXE
 
