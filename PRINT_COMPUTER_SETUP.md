@@ -52,7 +52,8 @@ The summary currently includes job ID, job state, job page count from Kareela
 `pages current/total` lines, completed pages, job media length, the printhead
 lifetime counter as diagnostic data, printed media length, engine state,
 ready/primed/capped state, last print/service timestamps, pages since last wipe,
-and the latest Kareela activity marker found in the tailed logs.
+active job lock state, and the latest Kareela activity marker found in the
+tailed logs.
 
 ## 4. Optional Read-Only SSH Override
 
@@ -75,6 +76,9 @@ If SSH succeeds, save the output so we can identify the real status/log paths.
 Best next test: click `Test SSH Status`, run a tiny scrap/calibration job with
 the normal printer software, then click `Test SSH Status` again. Confirm the job
 ID, state, `pages current/total`, and completed pages match the printer UI.
+
+The app stores the active Kareela job lock in `last_job_state.json`. Delete that
+file if the test machine needs a clean slate after an interrupted job.
 
 ## 5. Build Windows EXE
 

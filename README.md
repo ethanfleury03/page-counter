@@ -11,6 +11,7 @@ Current prototype:
 - Defaults to `192.168.100.200` with SSH `root/root`
 - Parses current controller state from discovered Memjet/Duraflex logs
 - Treats the `74858` printhead counter as lifetime diagnostic data, not job qty
+- Locks onto the active Kareela job ID while a job is printing
 
 ## Run Locally
 
@@ -57,3 +58,6 @@ The parser currently reads:
 
 Next live test is to run another small job and confirm the UI tracks progress
 from `pages 0/1` to the final completed page count.
+
+The active job lock is stored in `last_job_state.json` on the print computer and
+is intentionally not committed. Delete that file to clear the lock manually.

@@ -16,3 +16,4 @@ dist/
 
 *.log
 printer_config.json
+last_job_state.json

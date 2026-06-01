@@ -225,6 +225,8 @@ def _format_summary(result: ConnectionResult) -> list[str]:
     lines.append(f"Job page count: {_format_job_pages(summary)}")
     lines.append(f"Completed pages: {_format_unknown(summary.completed_pages)}")
     lines.append(f"Job media length: {_format_float(summary.job_media_length_m, 'm')}")
+    lines.append(f"Active job lock: {summary.job_lock_status}")
+    lines.append(f"Locked job ID: {summary.locked_job_id}")
     lines.append(
         "Printhead lifetime counter, not job qty: "
         f"{_format_unknown(summary.printhead_lifetime_page_count)}"

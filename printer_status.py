@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - handled at runtime in the GUI
 
 CONFIG_PATH = Path("printer_config.json")
 EXAMPLE_CONFIG_PATH = Path("printer_config.example.json")
+JOB_STATE_PATH = Path("last_job_state.json")
 CONNECT_TIMEOUT_SECONDS = 5
 COMMAND_TIMEOUT_SECONDS = 8
 DEFAULT_CONNECTIONS = (
@@ -74,6 +75,8 @@ class PrinterStatusSummary:
     job_pages_total: int | None
     completed_pages: int | None
     job_media_length_m: float | None
+    locked_job_id: str
+    job_lock_status: str
     printhead_lifetime_page_count: int | None
     printed_media_length_m: float | None
     engine_state: str
@@ -163,7 +166,9 @@ def poll_connection(connection: ConnectionConfig) -> ConnectionResult:
             command_output="",
         )
 
-    summary = parse_printer_status(output)
+    state = _load_job_state()
+    summary = parse_printer_status(output, active_job_id=state.get("active_job_id", ""))
+    _save_job_state(_next_job_state(state, summary))
     return ConnectionResult(
         name=connection.name,
         host=connection.host,
@@ -174,9 +179,12 @@ def poll_connection(connection: ConnectionConfig) -> ConnectionResult:
     )
 
 
-def parse_printer_status(text: str) -> PrinterStatusSummary:
-    job_status = _last_job_status(text)
-    job_completion = _last_job_completion(text)
+def parse_printer_status(text: str, active_job_id: str = "") -> PrinterStatusSummary:
+    job_status = _last_job_status(text, job_id=active_job_id)
+    job_completion = _last_job_completion(text, job_id=active_job_id)
+    if active_job_id and not job_status["job_id"] and not job_completion["job_id"]:
+        job_status = _last_job_status(text)
+        job_completion = _last_job_completion(text)
     printhead_lifetime_page_count = _last_int(r"Page Count:\s*([0-9]+)", text)
     printed_length = _last_float(r"Printed Media:\s*\(Length:\s*([0-9.]+)\s*m", text)
     engine_state = _last_text(r"Engine State:\s*([^,\n]+)", text) or "unknown"
@@ -190,15 +198,20 @@ def parse_printer_status(text: str) -> PrinterStatusSummary:
     is_capped = _last_bool(r"'is_capped':\s*(True|False)", text)
     latest_kareela_activity = _latest_activity(text, service_name="Kareela")
     latest_controller_activity = _latest_activity(text)
+    job_id = job_status["job_id"] or job_completion["job_id"] or "unknown"
+    job_name = job_status["job_name"] or job_completion["job_name"] or "unknown"
+    job_state = _current_job_state(job_status, job_completion)
 
     return PrinterStatusSummary(
-        job_id=job_status["job_id"] or job_completion["job_id"] or "unknown",
-        job_name=job_status["job_name"] or job_completion["job_name"] or "unknown",
-        job_state=job_status["job_state"] or job_completion["job_state"] or "unknown",
+        job_id=job_id,
+        job_name=job_name,
+        job_state=job_state,
         job_pages_current=job_status["pages_current"],
         job_pages_total=job_status["pages_total"],
         completed_pages=job_completion["completed_pages"],
         job_media_length_m=job_completion["media_length_m"],
+        locked_job_id=active_job_id or "none",
+        job_lock_status=_job_lock_status(active_job_id, job_id, job_state),
         printhead_lifetime_page_count=printhead_lifetime_page_count,
         printed_media_length_m=printed_length,
         engine_state=engine_state,
@@ -304,7 +317,7 @@ def _last_quoted_value(key: str, text: str) -> str | None:
     return _last_text(rf"'{re.escape(key)}':\s*'([^']+)'", text)
 
 
-def _last_job_status(text: str) -> dict[str, Any]:
+def _last_job_status(text: str, job_id: str = "") -> dict[str, Any]:
     pattern = re.compile(
         r"(?:GymeaJobQueueCtlr: Status change: Job|"
         r"PrintSessionMgr::notifyJobStatus\(\):)\s+"
@@ -314,7 +327,11 @@ def _last_job_status(text: str) -> dict[str, Any]:
         r"pages\s+(?P<pages_current>\d+)/(?P<pages_total>\d+),\s*"
         r"length \(m\)\s+(?P<length>[0-9.]+)"
     )
-    matches = list(pattern.finditer(text))
+    matches = [
+        match
+        for match in pattern.finditer(text)
+        if not job_id or match.group("job_id") == job_id
+    ]
     if not matches:
         return {
             "job_id": "",
@@ -323,6 +340,7 @@ def _last_job_status(text: str) -> dict[str, Any]:
             "pages_current": None,
             "pages_total": None,
             "length": None,
+            "position": -1,
         }
 
     match = matches[-1]
@@ -333,10 +351,11 @@ def _last_job_status(text: str) -> dict[str, Any]:
         "pages_current": int(match.group("pages_current")),
         "pages_total": int(match.group("pages_total")),
         "length": float(match.group("length")),
+        "position": match.start(),
     }
 
 
-def _last_job_completion(text: str) -> dict[str, Any]:
+def _last_job_completion(text: str, job_id: str = "") -> dict[str, Any]:
     completed_job_pattern = re.compile(
         r"Completed job\s+(?P<job_id>[0-9a-fA-F]+),\s*"
         r"'(?P<job_name>[^']*)',\s*"
@@ -348,7 +367,11 @@ def _last_job_completion(text: str) -> dict[str, Any]:
         r"notifyJobCompletion\(\): printed: pages = "
         r"(?P<completed_pages>\d+), media length = (?P<media_length>[0-9.]+)"
     )
-    completed_job_matches = list(completed_job_pattern.finditer(text))
+    completed_job_matches = [
+        match
+        for match in completed_job_pattern.finditer(text)
+        if not job_id or match.group("job_id") == job_id
+    ]
     completion_matches = list(completion_pattern.finditer(text))
 
     result: dict[str, Any] = {
@@ -357,6 +380,7 @@ def _last_job_completion(text: str) -> dict[str, Any]:
         "job_state": "",
         "completed_pages": None,
         "media_length_m": None,
+        "position": -1,
     }
     if completed_job_matches:
         match = completed_job_matches[-1]
@@ -367,13 +391,69 @@ def _last_job_completion(text: str) -> dict[str, Any]:
                 "job_state": match.group("job_state"),
                 "completed_pages": int(match.group("completed_pages")),
                 "media_length_m": float(match.group("media_length")),
+                "position": match.start(),
             }
         )
     if completion_matches:
         match = completion_matches[-1]
-        result["completed_pages"] = int(match.group("completed_pages"))
-        result["media_length_m"] = float(match.group("media_length"))
+        if not job_id or result["job_id"] == job_id:
+            result["completed_pages"] = int(match.group("completed_pages"))
+            result["media_length_m"] = float(match.group("media_length"))
+            result["position"] = max(result["position"], match.start())
     return result
+
+
+def _current_job_state(job_status: dict[str, Any], job_completion: dict[str, Any]) -> str:
+    if job_completion["position"] > job_status["position"] and job_completion["job_state"]:
+        return str(job_completion["job_state"])
+    return str(job_status["job_state"] or job_completion["job_state"] or "unknown")
+
+
+def _job_lock_status(active_job_id: str, parsed_job_id: str, job_state: str) -> str:
+    if not active_job_id:
+        return "unlocked"
+    if parsed_job_id == active_job_id and job_state in {"PRINTING", "STARTING", "IDLE"}:
+        return "locked"
+    if parsed_job_id == active_job_id:
+        return "releasing after completion"
+    return "locked; no current tail match"
+
+
+def _load_job_state(path: Path = JOB_STATE_PATH) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    active_job_id = data.get("active_job_id", "")
+    return {"active_job_id": str(active_job_id)} if active_job_id else {}
+
+
+def _save_job_state(state: dict[str, str], path: Path = JOB_STATE_PATH) -> None:
+    if state:
+        path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    elif path.exists():
+        path.unlink()
+
+
+def _next_job_state(
+    current_state: dict[str, str],
+    summary: PrinterStatusSummary,
+) -> dict[str, str]:
+    active_job_id = current_state.get("active_job_id", "")
+    if summary.job_id == "unknown":
+        return current_state
+    if summary.job_state == "PRINTING":
+        return {"active_job_id": summary.job_id}
+    if active_job_id and summary.job_id == active_job_id:
+        if summary.job_state in {"CANCELLED", "COMPLETE", "COMPLETED", "DONE", "FAILED"}:
+            return {}
+        if summary.completed_pages is not None:
+            return {}
+    return current_state
 
 
 def _latest_activity(text: str, service_name: str | None = None) -> str:
