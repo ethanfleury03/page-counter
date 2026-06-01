@@ -67,6 +67,13 @@ class ConnectionConfig:
 
 @dataclass(frozen=True)
 class PrinterStatusSummary:
+    job_id: str
+    job_name: str
+    job_state: str
+    job_pages_current: int | None
+    job_pages_total: int | None
+    completed_pages: int | None
+    job_media_length_m: float | None
     printhead_lifetime_page_count: int | None
     printed_media_length_m: float | None
     engine_state: str
@@ -168,6 +175,8 @@ def poll_connection(connection: ConnectionConfig) -> ConnectionResult:
 
 
 def parse_printer_status(text: str) -> PrinterStatusSummary:
+    job_status = _last_job_status(text)
+    job_completion = _last_job_completion(text)
     printhead_lifetime_page_count = _last_int(r"Page Count:\s*([0-9]+)", text)
     printed_length = _last_float(r"Printed Media:\s*\(Length:\s*([0-9.]+)\s*m", text)
     engine_state = _last_text(r"Engine State:\s*([^,\n]+)", text) or "unknown"
@@ -183,6 +192,13 @@ def parse_printer_status(text: str) -> PrinterStatusSummary:
     latest_controller_activity = _latest_activity(text)
 
     return PrinterStatusSummary(
+        job_id=job_status["job_id"] or job_completion["job_id"] or "unknown",
+        job_name=job_status["job_name"] or job_completion["job_name"] or "unknown",
+        job_state=job_status["job_state"] or job_completion["job_state"] or "unknown",
+        job_pages_current=job_status["pages_current"],
+        job_pages_total=job_status["pages_total"],
+        completed_pages=job_completion["completed_pages"],
+        job_media_length_m=job_completion["media_length_m"],
         printhead_lifetime_page_count=printhead_lifetime_page_count,
         printed_media_length_m=printed_length,
         engine_state=engine_state,
@@ -286,6 +302,78 @@ def _last_bool(pattern: str, text: str) -> bool | None:
 
 def _last_quoted_value(key: str, text: str) -> str | None:
     return _last_text(rf"'{re.escape(key)}':\s*'([^']+)'", text)
+
+
+def _last_job_status(text: str) -> dict[str, Any]:
+    pattern = re.compile(
+        r"(?:GymeaJobQueueCtlr: Status change: Job|"
+        r"PrintSessionMgr::notifyJobStatus\(\):)\s+"
+        r"(?P<job_id>[0-9a-fA-F]+),\s*"
+        r"'(?P<job_name>[^']*)',\s*"
+        r"(?P<job_state>[A-Z_]+),\s*"
+        r"pages\s+(?P<pages_current>\d+)/(?P<pages_total>\d+),\s*"
+        r"length \(m\)\s+(?P<length>[0-9.]+)"
+    )
+    matches = list(pattern.finditer(text))
+    if not matches:
+        return {
+            "job_id": "",
+            "job_name": "",
+            "job_state": "",
+            "pages_current": None,
+            "pages_total": None,
+            "length": None,
+        }
+
+    match = matches[-1]
+    return {
+        "job_id": match.group("job_id"),
+        "job_name": match.group("job_name"),
+        "job_state": match.group("job_state"),
+        "pages_current": int(match.group("pages_current")),
+        "pages_total": int(match.group("pages_total")),
+        "length": float(match.group("length")),
+    }
+
+
+def _last_job_completion(text: str) -> dict[str, Any]:
+    completed_job_pattern = re.compile(
+        r"Completed job\s+(?P<job_id>[0-9a-fA-F]+),\s*"
+        r"'(?P<job_name>[^']*)',\s*"
+        r"(?P<job_state>[A-Z_]+),.*?"
+        r"pages\s+(?P<completed_pages>\d+),\s*"
+        r"media\s+(?P<media_length>[0-9.]+)m"
+    )
+    completion_pattern = re.compile(
+        r"notifyJobCompletion\(\): printed: pages = "
+        r"(?P<completed_pages>\d+), media length = (?P<media_length>[0-9.]+)"
+    )
+    completed_job_matches = list(completed_job_pattern.finditer(text))
+    completion_matches = list(completion_pattern.finditer(text))
+
+    result: dict[str, Any] = {
+        "job_id": "",
+        "job_name": "",
+        "job_state": "",
+        "completed_pages": None,
+        "media_length_m": None,
+    }
+    if completed_job_matches:
+        match = completed_job_matches[-1]
+        result.update(
+            {
+                "job_id": match.group("job_id"),
+                "job_name": match.group("job_name"),
+                "job_state": match.group("job_state"),
+                "completed_pages": int(match.group("completed_pages")),
+                "media_length_m": float(match.group("media_length")),
+            }
+        )
+    if completion_matches:
+        match = completion_matches[-1]
+        result["completed_pages"] = int(match.group("completed_pages"))
+        result["media_length_m"] = float(match.group("media_length"))
+    return result
 
 
 def _latest_activity(text: str, service_name: str | None = None) -> str:

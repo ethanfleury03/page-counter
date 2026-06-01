@@ -48,7 +48,8 @@ discovered on the controller, then parses the useful fields into a summary:
 - `/var/log/kirrawee/kirrawee.log`
 - `/var/log/messages`
 
-The summary currently includes the job page count placeholder, the printhead
+The summary currently includes job ID, job state, job page count from Kareela
+`pages current/total` lines, completed pages, job media length, the printhead
 lifetime counter as diagnostic data, printed media length, engine state,
 ready/primed/capped state, last print/service timestamps, pages since last wipe,
 and the latest Kareela activity marker found in the tailed logs.
@@ -72,8 +73,8 @@ commands from the config file. It does not send print jobs or fire hardware.
 If SSH succeeds, save the output so we can identify the real status/log paths.
 
 Best next test: click `Test SSH Status`, run a tiny scrap/calibration job with
-the normal printer software, then click `Test SSH Status` again. Compare the log
-tail before/after to find the file and line format that tracks jobs/pages.
+the normal printer software, then click `Test SSH Status` again. Confirm the job
+ID, state, `pages current/total`, and completed pages match the printer UI.
 
 ## 5. Build Windows EXE
 
@@ -109,7 +110,7 @@ Before sending any real print commands:
 ## Current Prototype Limits
 
 - GUI can test read-only SSH connectivity.
-- GUI parses the current controller status from known log lines.
+- GUI parses the current controller status and Kareela job page-count lines.
 - GUI does not send print jobs or hardware commands.
-- Per-job page counting still needs one before/after scrap-job trace so we can
-  identify the exact job counter line, likely in `/var/log/kareela/kareela.log`.
+- Per-job page-count parsing is based on Kareela `GymeaJobQueueCtlr` and
+  `PrintSessionMgr::notifyJobStatus()` lines.

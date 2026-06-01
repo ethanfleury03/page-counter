@@ -173,7 +173,7 @@ class PageCountRipApp(tk.Tk):
         status = f"{ok_count}/{len(results)} SSH connection(s) healthy"
         job_page_count = None
         if first_ok_result and first_ok_result.summary:
-            job_page_count = None
+            job_page_count = _format_job_pages(first_ok_result.summary)
         self.after(
             0,
             self._show_poll_results,
@@ -186,11 +186,11 @@ class PageCountRipApp(tk.Tk):
         self,
         status: str,
         output: str,
-        job_page_count: int | None,
+        job_page_count: str | None,
     ) -> None:
         self.connection_status_var.set(status)
         if job_page_count is not None:
-            self.total_pages_var.set(str(job_page_count))
+            self.total_pages_var.set(job_page_count)
         else:
             self.total_pages_var.set("not found yet")
         self._set_output(output + "\n")
@@ -219,7 +219,12 @@ def _format_summary(result: ConnectionResult) -> list[str]:
         return []
 
     lines = ["Parsed controller status:"]
-    lines.append("Job page count: not found yet")
+    lines.append(f"Job ID: {summary.job_id}")
+    lines.append(f"Job name: {summary.job_name}")
+    lines.append(f"Job state: {summary.job_state}")
+    lines.append(f"Job page count: {_format_job_pages(summary)}")
+    lines.append(f"Completed pages: {_format_unknown(summary.completed_pages)}")
+    lines.append(f"Job media length: {_format_float(summary.job_media_length_m, 'm')}")
     lines.append(
         "Printhead lifetime counter, not job qty: "
         f"{_format_unknown(summary.printhead_lifetime_page_count)}"
@@ -243,6 +248,14 @@ def _format_summary(result: ConnectionResult) -> list[str]:
         f"Latest controller marker: {_shorten(summary.latest_controller_activity)}"
     )
     return lines
+
+
+def _format_job_pages(summary: object) -> str:
+    current = getattr(summary, "job_pages_current", None)
+    total = getattr(summary, "job_pages_total", None)
+    if current is None or total is None:
+        return "not found yet"
+    return f"{current}/{total}"
 
 
 def _format_unknown(value: object | None) -> str:

@@ -5,7 +5,7 @@ Minimal Windows GUI for showing live print-job page count status.
 Current prototype:
 
 - Displays `Job ID`
-- Displays job page count once we identify the correct per-job log line
+- Displays job page count from Kareela `pages current/total` lines
 - Tests read-only SSH status against one or two printer/controller Ethernet links
 - Runs only allowlisted read commands
 - Defaults to `192.168.100.200` with SSH `root/root`
@@ -53,7 +53,7 @@ The parser currently reads:
 
 - Printhead lifetime counter and printed media length from `/pes_client.log`, when present
 - Live print/service state from `/var/log/pdl/pdl.log`
-- Service/activity markers from `/var/log/kareela/kareela.log`
+- Job ID, job state, `pages current/total`, completed pages, and media length from `/var/log/kareela/kareela.log`
 
-Next live test is to compare the parsed status before and after a tiny scrap job
-so we can identify the exact per-job page counter.
+Next live test is to run another small job and confirm the UI tracks progress
+from `pages 0/1` to the final completed page count.
