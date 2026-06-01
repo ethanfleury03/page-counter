@@ -48,9 +48,10 @@ discovered on the controller, then parses the useful fields into a summary:
 - `/var/log/kirrawee/kirrawee.log`
 - `/var/log/messages`
 
-The summary currently includes lifetime page count, printed media length, engine
-state, ready/primed/capped state, last print/service timestamps, pages since last
-wipe, and the latest activity marker found in the tailed logs.
+The summary currently includes the job page count placeholder, the printhead
+lifetime counter as diagnostic data, printed media length, engine state,
+ready/primed/capped state, last print/service timestamps, pages since last wipe,
+and the latest Kareela activity marker found in the tailed logs.
 
 ## 4. Optional Read-Only SSH Override
 
@@ -111,4 +112,4 @@ Before sending any real print commands:
 - GUI parses the current controller status from known log lines.
 - GUI does not send print jobs or hardware commands.
 - Per-job page counting still needs one before/after scrap-job trace so we can
-  identify the exact job counter line.
+  identify the exact job counter line, likely in `/var/log/kareela/kareela.log`.

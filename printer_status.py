@@ -37,6 +37,7 @@ DEFAULT_CONNECTIONS = (
             "ls -lh /var/log/kareela/kareela.log",
             "ls -lh /var/log/kenmare/kenmare.log",
             "ls -lh /var/log/kirrawee/kirrawee.log",
+            "grep -Ei \"page|job|copy|quantity|sheet|print\" /var/log/kareela/kareela.log 2>/dev/null | tail -n 80",
             "find /var/log -maxdepth 2 -type f 2>/dev/null | sort",
         ],
         "log_paths": [
@@ -66,7 +67,7 @@ class ConnectionConfig:
 
 @dataclass(frozen=True)
 class PrinterStatusSummary:
-    lifetime_page_count: int | None
+    printhead_lifetime_page_count: int | None
     printed_media_length_m: float | None
     engine_state: str
     ready_for_print_data: bool | None
@@ -77,7 +78,8 @@ class PrinterStatusSummary:
     meters_since_last_wipe: float | None
     is_primed: bool | None
     is_capped: bool | None
-    latest_activity: str
+    latest_kareela_activity: str
+    latest_controller_activity: str
 
 
 @dataclass(frozen=True)
@@ -166,7 +168,7 @@ def poll_connection(connection: ConnectionConfig) -> ConnectionResult:
 
 
 def parse_printer_status(text: str) -> PrinterStatusSummary:
-    page_count = _last_int(r"Page Count:\s*([0-9]+)", text)
+    printhead_lifetime_page_count = _last_int(r"Page Count:\s*([0-9]+)", text)
     printed_length = _last_float(r"Printed Media:\s*\(Length:\s*([0-9.]+)\s*m", text)
     engine_state = _last_text(r"Engine State:\s*([^,\n]+)", text) or "unknown"
     ready = _last_bool(r"Ready for Print Data:\s*(True|False)", text)
@@ -177,10 +179,11 @@ def parse_printer_status(text: str) -> PrinterStatusSummary:
     meters_since_wipe = _last_float(r"'meters_since_last_wipe':\s*([0-9.]+)", text)
     is_primed = _last_bool(r"'is_primed':\s*(True|False)", text)
     is_capped = _last_bool(r"'is_capped':\s*(True|False)", text)
-    latest_activity = _latest_activity(text)
+    latest_kareela_activity = _latest_activity(text, service_name="Kareela")
+    latest_controller_activity = _latest_activity(text)
 
     return PrinterStatusSummary(
-        lifetime_page_count=page_count,
+        printhead_lifetime_page_count=printhead_lifetime_page_count,
         printed_media_length_m=printed_length,
         engine_state=engine_state,
         ready_for_print_data=ready,
@@ -191,7 +194,8 @@ def parse_printer_status(text: str) -> PrinterStatusSummary:
         meters_since_last_wipe=meters_since_wipe,
         is_primed=is_primed,
         is_capped=is_capped,
-        latest_activity=latest_activity,
+        latest_kareela_activity=latest_kareela_activity,
+        latest_controller_activity=latest_controller_activity,
     )
 
 
@@ -284,7 +288,7 @@ def _last_quoted_value(key: str, text: str) -> str | None:
     return _last_text(rf"'{re.escape(key)}':\s*'([^']+)'", text)
 
 
-def _latest_activity(text: str) -> str:
+def _latest_activity(text: str, service_name: str | None = None) -> str:
     activity_patterns = (
         "Changing state",
         "Starting ",
@@ -297,6 +301,8 @@ def _latest_activity(text: str) -> str:
     )
     candidates = []
     for line in text.splitlines():
+        if service_name and service_name not in line:
+            continue
         if any(pattern in line for pattern in activity_patterns):
             candidates.append(line.strip())
     return candidates[-1] if candidates else "No printer activity markers found in tailed logs."

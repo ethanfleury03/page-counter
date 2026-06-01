@@ -10,7 +10,7 @@ from printer_status import ConnectionResult, poll_all
 
 
 DEFAULT_JOB_ID = "--"
-DEFAULT_LIFETIME_PAGE_COUNT = "unknown"
+DEFAULT_PAGE_COUNTER = "unknown"
 
 
 class PageCountRipApp(tk.Tk):
@@ -22,7 +22,7 @@ class PageCountRipApp(tk.Tk):
         self.configure(bg="#f4f6f8")
 
         self.job_id_var = tk.StringVar(value=DEFAULT_JOB_ID)
-        self.total_pages_var = tk.StringVar(value=DEFAULT_LIFETIME_PAGE_COUNT)
+        self.total_pages_var = tk.StringVar(value=DEFAULT_PAGE_COUNTER)
         self.connection_status_var = tk.StringVar(value="Waiting for live data connection")
 
         self._configure_styles()
@@ -78,7 +78,7 @@ class PageCountRipApp(tk.Tk):
         self._add_field(
             panel,
             row=1,
-            label="Lifetime Page Count",
+            label="Job Page Count",
             value_var=self.total_pages_var,
         )
 
@@ -171,26 +171,28 @@ class PageCountRipApp(tk.Tk):
             lines.append("")
 
         status = f"{ok_count}/{len(results)} SSH connection(s) healthy"
-        lifetime_page_count = None
+        job_page_count = None
         if first_ok_result and first_ok_result.summary:
-            lifetime_page_count = first_ok_result.summary.lifetime_page_count
+            job_page_count = None
         self.after(
             0,
             self._show_poll_results,
             status,
             "\n".join(lines).strip(),
-            lifetime_page_count,
+            job_page_count,
         )
 
     def _show_poll_results(
         self,
         status: str,
         output: str,
-        lifetime_page_count: int | None,
+        job_page_count: int | None,
     ) -> None:
         self.connection_status_var.set(status)
-        if lifetime_page_count is not None:
-            self.total_pages_var.set(str(lifetime_page_count))
+        if job_page_count is not None:
+            self.total_pages_var.set(str(job_page_count))
+        else:
+            self.total_pages_var.set("not found yet")
         self._set_output(output + "\n")
         self.test_button.configure(state=tk.NORMAL)
 
@@ -217,7 +219,11 @@ def _format_summary(result: ConnectionResult) -> list[str]:
         return []
 
     lines = ["Parsed controller status:"]
-    lines.append(f"Lifetime page count: {_format_unknown(summary.lifetime_page_count)}")
+    lines.append("Job page count: not found yet")
+    lines.append(
+        "Printhead lifetime counter, not job qty: "
+        f"{_format_unknown(summary.printhead_lifetime_page_count)}"
+    )
     lines.append(
         f"Printed media length: {_format_float(summary.printed_media_length_m, 'm')}"
     )
@@ -232,7 +238,10 @@ def _format_summary(result: ConnectionResult) -> list[str]:
     lines.append(
         f"Meters since last wipe: {_format_float(summary.meters_since_last_wipe, 'm')}"
     )
-    lines.append(f"Latest activity marker: {_shorten(summary.latest_activity)}")
+    lines.append(f"Latest Kareela marker: {_shorten(summary.latest_kareela_activity)}")
+    lines.append(
+        f"Latest controller marker: {_shorten(summary.latest_controller_activity)}"
+    )
     return lines
 
 

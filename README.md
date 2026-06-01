@@ -5,11 +5,12 @@ Minimal Windows GUI for showing live print-job page count status.
 Current prototype:
 
 - Displays `Job ID`
-- Displays lifetime page count when the controller exposes it
+- Displays job page count once we identify the correct per-job log line
 - Tests read-only SSH status against one or two printer/controller Ethernet links
 - Runs only allowlisted read commands
 - Defaults to `192.168.100.200` with SSH `root/root`
 - Parses current controller state from discovered Memjet/Duraflex logs
+- Treats the `74858` printhead counter as lifetime diagnostic data, not job qty
 
 ## Run Locally
 
@@ -50,9 +51,9 @@ dist\PageCountRIP.exe
 
 The parser currently reads:
 
-- Lifetime page count and printed media length from `/pes_client.log`, when present
+- Printhead lifetime counter and printed media length from `/pes_client.log`, when present
 - Live print/service state from `/var/log/pdl/pdl.log`
-- Service/activity markers from the tailed controller logs
+- Service/activity markers from `/var/log/kareela/kareela.log`
 
 Next live test is to compare the parsed status before and after a tiny scrap job
 so we can identify the exact per-job page counter.
