@@ -2,6 +2,7 @@
 setlocal
 
 python -m pip install --upgrade pyinstaller
+python -m pip install -r requirements.txt
 python -m PyInstaller --onefile --windowed --name PageCountRIP page_count_rip.py
 
 echo.
