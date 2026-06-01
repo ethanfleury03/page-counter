@@ -255,8 +255,15 @@ def _format_summary(result: ConnectionResult) -> list[str]:
 def _format_job_pages(summary: object) -> str:
     current = getattr(summary, "job_pages_current", None)
     total = getattr(summary, "job_pages_total", None)
+    completed = getattr(summary, "completed_pages", None)
+    state = str(getattr(summary, "job_state", "") or "").upper()
+    if completed is not None and state not in {"PRINTING", "STARTING", "IDLE"}:
+        return f"{completed}/{completed}"
     if current is None or total is None:
         return "not found yet"
+    if total <= 1 and current > total:
+        suffix = "page" if current == 1 else "pages"
+        return f"{current} {suffix}"
     return f"{current}/{total}"
 
 
