@@ -6,11 +6,11 @@ import threading
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
-from printer_status import poll_all
+from printer_status import ConnectionResult, poll_all
 
 
 DEFAULT_JOB_ID = "--"
-DEFAULT_TOTAL_PAGES_SENT = "0"
+DEFAULT_LIFETIME_PAGE_COUNT = "unknown"
 
 
 class PageCountRipApp(tk.Tk):
@@ -22,7 +22,7 @@ class PageCountRipApp(tk.Tk):
         self.configure(bg="#f4f6f8")
 
         self.job_id_var = tk.StringVar(value=DEFAULT_JOB_ID)
-        self.total_pages_var = tk.StringVar(value=DEFAULT_TOTAL_PAGES_SENT)
+        self.total_pages_var = tk.StringVar(value=DEFAULT_LIFETIME_PAGE_COUNT)
         self.connection_status_var = tk.StringVar(value="Waiting for live data connection")
 
         self._configure_styles()
@@ -78,7 +78,7 @@ class PageCountRipApp(tk.Tk):
         self._add_field(
             panel,
             row=1,
-            label="Total Pages Sent",
+            label="Lifetime Page Count",
             value_var=self.total_pages_var,
         )
 
@@ -107,7 +107,7 @@ class PageCountRipApp(tk.Tk):
             font=("Consolas", 9),
         )
         self.output_box.grid(row=4, column=0, sticky="ew")
-        self.output_box.insert(tk.END, "Default connection is 192.168.100.200 as root/root. Click Test SSH Status to run read-only discovery commands.\n")
+        self.output_box.insert(tk.END, "Default connection is 192.168.100.200 as root/root. Click Test SSH Status to parse live read-only controller status.\n")
         self.output_box.configure(state=tk.DISABLED)
 
     def _add_field(
@@ -153,21 +153,44 @@ class PageCountRipApp(tk.Tk):
 
         lines = []
         ok_count = 0
+        first_ok_result = None
         for result in results:
             state = "OK" if result.ok else "FAILED"
             if result.ok:
                 ok_count += 1
+                first_ok_result = first_ok_result or result
             lines.append(f"[{state}] {result.name} ({result.host})")
             lines.append(result.message)
+            if result.summary:
+                lines.append("")
+                lines.extend(_format_summary(result))
+                lines.append("")
+                lines.append("Raw read-only trace:")
             if result.command_output:
                 lines.append(result.command_output)
             lines.append("")
 
         status = f"{ok_count}/{len(results)} SSH connection(s) healthy"
-        self.after(0, self._show_poll_results, status, "\n".join(lines).strip())
+        lifetime_page_count = None
+        if first_ok_result and first_ok_result.summary:
+            lifetime_page_count = first_ok_result.summary.lifetime_page_count
+        self.after(
+            0,
+            self._show_poll_results,
+            status,
+            "\n".join(lines).strip(),
+            lifetime_page_count,
+        )
 
-    def _show_poll_results(self, status: str, output: str) -> None:
+    def _show_poll_results(
+        self,
+        status: str,
+        output: str,
+        lifetime_page_count: int | None,
+    ) -> None:
         self.connection_status_var.set(status)
+        if lifetime_page_count is not None:
+            self.total_pages_var.set(str(lifetime_page_count))
         self._set_output(output + "\n")
         self.test_button.configure(state=tk.NORMAL)
 
@@ -186,6 +209,55 @@ class PageCountRipApp(tk.Tk):
 def main() -> None:
     app = PageCountRipApp()
     app.mainloop()
+
+
+def _format_summary(result: ConnectionResult) -> list[str]:
+    summary = result.summary
+    if not summary:
+        return []
+
+    lines = ["Parsed controller status:"]
+    lines.append(f"Lifetime page count: {_format_unknown(summary.lifetime_page_count)}")
+    lines.append(
+        f"Printed media length: {_format_float(summary.printed_media_length_m, 'm')}"
+    )
+    lines.append(f"Engine state: {summary.engine_state}")
+    lines.append(f"Ready for print data: {_format_bool(summary.ready_for_print_data)}")
+    lines.append(f"Primed: {_format_bool(summary.is_primed)}")
+    lines.append(f"Capped: {_format_bool(summary.is_capped)}")
+    lines.append(f"Last print time: {summary.last_print_time}")
+    lines.append(f"Last spit time: {summary.last_spit_time}")
+    lines.append(f"Last declog time: {summary.last_declog_time}")
+    lines.append(f"Pages since last wipe: {_format_unknown(summary.pages_since_last_wipe)}")
+    lines.append(
+        f"Meters since last wipe: {_format_float(summary.meters_since_last_wipe, 'm')}"
+    )
+    lines.append(f"Latest activity marker: {_shorten(summary.latest_activity)}")
+    return lines
+
+
+def _format_unknown(value: object | None) -> str:
+    if value is None:
+        return "unknown"
+    return str(value)
+
+
+def _format_bool(value: bool | None) -> str:
+    if value is None:
+        return "unknown"
+    return "yes" if value else "no"
+
+
+def _format_float(value: float | None, suffix: str) -> str:
+    if value is None:
+        return "unknown"
+    return f"{value:.3f} {suffix}"
+
+
+def _shorten(value: str, limit: int = 240) -> str:
+    if len(value) <= limit:
+        return value
+    return value[: limit - 3] + "..."
 
 
 if __name__ == "__main__":

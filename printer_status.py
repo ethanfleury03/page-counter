@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,12 +65,29 @@ class ConnectionConfig:
 
 
 @dataclass(frozen=True)
+class PrinterStatusSummary:
+    lifetime_page_count: int | None
+    printed_media_length_m: float | None
+    engine_state: str
+    ready_for_print_data: bool | None
+    last_print_time: str
+    last_spit_time: str
+    last_declog_time: str
+    pages_since_last_wipe: int | None
+    meters_since_last_wipe: float | None
+    is_primed: bool | None
+    is_capped: bool | None
+    latest_activity: str
+
+
+@dataclass(frozen=True)
 class ConnectionResult:
     name: str
     host: str
     ok: bool
     message: str
     command_output: str
+    summary: PrinterStatusSummary | None = None
 
 
 def load_config(path: Path = CONFIG_PATH) -> list[ConnectionConfig]:
@@ -136,12 +154,44 @@ def poll_connection(connection: ConnectionConfig) -> ConnectionResult:
             command_output="",
         )
 
+    summary = parse_printer_status(output)
     return ConnectionResult(
         name=connection.name,
         host=connection.host,
         ok=True,
         message="Connected and read status data",
         command_output=output,
+        summary=summary,
+    )
+
+
+def parse_printer_status(text: str) -> PrinterStatusSummary:
+    page_count = _last_int(r"Page Count:\s*([0-9]+)", text)
+    printed_length = _last_float(r"Printed Media:\s*\(Length:\s*([0-9.]+)\s*m", text)
+    engine_state = _last_text(r"Engine State:\s*([^,\n]+)", text) or "unknown"
+    ready = _last_bool(r"Ready for Print Data:\s*(True|False)", text)
+    last_print = _last_quoted_value("last_print_time", text)
+    last_spit = _last_quoted_value("last_spit_time", text)
+    last_declog = _last_quoted_value("last_declog_time", text)
+    pages_since_wipe = _last_int(r"'pages_since_last_wipe':\s*([0-9]+)", text)
+    meters_since_wipe = _last_float(r"'meters_since_last_wipe':\s*([0-9.]+)", text)
+    is_primed = _last_bool(r"'is_primed':\s*(True|False)", text)
+    is_capped = _last_bool(r"'is_capped':\s*(True|False)", text)
+    latest_activity = _latest_activity(text)
+
+    return PrinterStatusSummary(
+        lifetime_page_count=page_count,
+        printed_media_length_m=printed_length,
+        engine_state=engine_state,
+        ready_for_print_data=ready,
+        last_print_time=last_print or "unknown",
+        last_spit_time=last_spit or "unknown",
+        last_declog_time=last_declog or "unknown",
+        pages_since_last_wipe=pages_since_wipe,
+        meters_since_last_wipe=meters_since_wipe,
+        is_primed=is_primed,
+        is_capped=is_capped,
+        latest_activity=latest_activity,
     )
 
 
@@ -194,3 +244,59 @@ def _run_status_commands(client: Any, connection: ConnectionConfig) -> str:
         command_output.append(f"[exit {exit_status}]")
 
     return "\n".join(command_output)
+
+
+def _last_text(pattern: str, text: str) -> str | None:
+    matches = re.findall(pattern, text)
+    if not matches:
+        return None
+    return str(matches[-1]).strip()
+
+
+def _last_int(pattern: str, text: str) -> int | None:
+    value = _last_text(pattern, text)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _last_float(pattern: str, text: str) -> float | None:
+    value = _last_text(pattern, text)
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _last_bool(pattern: str, text: str) -> bool | None:
+    value = _last_text(pattern, text)
+    if value is None:
+        return None
+    return value == "True"
+
+
+def _last_quoted_value(key: str, text: str) -> str | None:
+    return _last_text(rf"'{re.escape(key)}':\s*'([^']+)'", text)
+
+
+def _latest_activity(text: str) -> str:
+    activity_patterns = (
+        "Changing state",
+        "Starting ",
+        "Finished ",
+        "prepare_for_printing",
+        "pre_job",
+        "last_print_time",
+        "CustomSpit",
+        "PeriodicIdle",
+    )
+    candidates = []
+    for line in text.splitlines():
+        if any(pattern in line for pattern in activity_patterns):
+            candidates.append(line.strip())
+    return candidates[-1] if candidates else "No printer activity markers found in tailed logs."

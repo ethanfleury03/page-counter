@@ -5,10 +5,11 @@ Minimal Windows GUI for showing live print-job page count status.
 Current prototype:
 
 - Displays `Job ID`
-- Displays `Total Pages Sent`
+- Displays lifetime page count when the controller exposes it
 - Tests read-only SSH status against one or two printer/controller Ethernet links
 - Runs only allowlisted read commands
 - Defaults to `192.168.100.200` with SSH `root/root`
+- Parses current controller state from discovered Memjet/Duraflex logs
 
 ## Run Locally
 
@@ -45,13 +46,13 @@ The output should be:
 dist\PageCountRIP.exe
 ```
 
-## Next Data Hook
+## Current Data Hook
 
-When sample logs are available, add the relevant paths to `log_paths` in
-`printer_config.json`. The app will tail those files read-only.
+The parser currently reads:
 
-After we identify the real job/page-count log format, plug the parser into:
+- Lifetime page count and printed media length from `/pes_client.log`, when present
+- Live print/service state from `/var/log/pdl/pdl.log`
+- Service/activity markers from the tailed controller logs
 
-```python
-app.set_job_status(job_id, total_pages_sent)
-```
+Next live test is to compare the parsed status before and after a tiny scrap job
+so we can identify the exact per-job page counter.

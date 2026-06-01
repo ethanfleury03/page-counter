@@ -37,8 +37,8 @@ python page_count_rip.py
 
 Expected result: a small "Page Count RIP" window opens and shows placeholder values.
 Click `Test SSH Status` to connect to `192.168.100.200` as `root/root` and run
-read-only discovery commands. The default status test now tails likely printer
-logs discovered on the controller:
+read-only status commands. The default status test tails likely printer logs
+discovered on the controller, then parses the useful fields into a summary:
 
 - `/pes_client.log`
 - `/var/log/pdl/pdl.log`
@@ -47,6 +47,10 @@ logs discovered on the controller:
 - `/var/log/kenmare/kenmare.log`
 - `/var/log/kirrawee/kirrawee.log`
 - `/var/log/messages`
+
+The summary currently includes lifetime page count, printed media length, engine
+state, ready/primed/capped state, last print/service timestamps, pages since last
+wipe, and the latest activity marker found in the tailed logs.
 
 ## 4. Optional Read-Only SSH Override
 
@@ -104,6 +108,7 @@ Before sending any real print commands:
 ## Current Prototype Limits
 
 - GUI can test read-only SSH connectivity.
+- GUI parses the current controller status from known log lines.
 - GUI does not send print jobs or hardware commands.
-- Live log parsing still needs the real job/page-count log format.
-- `set_job_status(job_id, total_pages_sent)` is the integration point for the parser.
+- Per-job page counting still needs one before/after scrap-job trace so we can
+  identify the exact job counter line.
