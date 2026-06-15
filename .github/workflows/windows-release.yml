@@ -1,0 +1,59 @@
+name: Build Windows Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip pyinstaller
+          python -m pip install -r requirements.txt
+
+      - name: Build EXE
+        run: |
+          python -m PyInstaller --clean --onefile --windowed --name PageCountRIP page_count_rip.py
+
+      - name: Package Windows release
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item dist/PageCountRIP.exe release/
+          Copy-Item printer_config.example.json release/
+          Copy-Item install_page_counter.bat release/
+          Copy-Item install_page_counter.ps1 release/
+          Copy-Item update_page_counter.bat release/
+          Copy-Item update_page_counter.ps1 release/
+          Copy-Item PRINT_COMPUTER_SETUP.md release/
+          Compress-Archive -Force -Path release/* -DestinationPath PageCountRIP-windows.zip
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PageCountRIP-windows
+          path: PageCountRIP-windows.zip
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PageCountRIP-windows.zip

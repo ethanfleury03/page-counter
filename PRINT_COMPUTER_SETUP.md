@@ -11,7 +11,37 @@ Use this checklist for the first install on the computer connected to the printe
 - Expected SSH username:
 - Log file path or command, when known:
 
-## 2. Install From Git
+## 2. Preferred Install From GitHub Release
+
+Use this path for normal printer computers. It does not require Python on the
+printer computer.
+
+Open PowerShell and run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+$url = "https://raw.githubusercontent.com/ethanfleury03/page-counter/main/install_page_counter.ps1"
+$installer = "$env:TEMP\install_page_counter.ps1"
+Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $installer
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer
+```
+
+Default install location:
+
+```text
+%LOCALAPPDATA%\Arrow\PageCountRIP
+```
+
+The installer creates `printer_config.json` if it does not already exist.
+Future updates preserve that machine-specific config.
+
+For later updates:
+
+```bat
+%LOCALAPPDATA%\Arrow\PageCountRIP\update_page_counter.bat
+```
+
+## 3. Install From Git For Development
 
 Install Git for Windows if needed, then clone the repo:
 
@@ -26,7 +56,7 @@ For later updates:
 git pull
 ```
 
-## 3. Run Prototype From Source
+## 4. Run Prototype From Source
 
 If Python is installed:
 
@@ -80,7 +110,7 @@ ID, state, `pages current/total`, and completed pages match the printer UI.
 The app stores the active Kareela job lock in `last_job_state.json`. Delete that
 file if the test machine needs a clean slate after an interrupted job.
 
-## 5. Build Windows EXE
+## 5. Build Windows EXE Locally
 
 From the project folder:
 

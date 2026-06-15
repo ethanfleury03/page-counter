@@ -48,6 +48,34 @@ The output should be:
 dist\PageCountRIP.exe
 ```
 
+## Install On A Printer Computer
+
+The preferred field install is the packaged Windows release. It installs into the
+current user's app data folder, preserves machine-specific config on updates, and
+creates a desktop shortcut.
+
+On the printer computer, run this in PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+$url = "https://raw.githubusercontent.com/ethanfleury03/page-counter/main/install_page_counter.ps1"
+$installer = "$env:TEMP\install_page_counter.ps1"
+Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $installer
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer
+```
+
+After that, launch:
+
+```text
+%LOCALAPPDATA%\Arrow\PageCountRIP\PageCountRIP.exe
+```
+
+To update later, run:
+
+```text
+%LOCALAPPDATA%\Arrow\PageCountRIP\update_page_counter.bat
+```
+
 ## Current Data Hook
 
 The parser currently reads:
