@@ -6,12 +6,41 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Invoke-WithRetry {
+    param(
+        [scriptblock]$ScriptBlock,
+        [string]$Description,
+        [int]$Attempts = 3
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            return & $ScriptBlock
+        } catch {
+            if ($attempt -eq $Attempts) {
+                throw
+            }
+
+            $delaySeconds = 2 * $attempt
+            Write-Warning "$Description failed on attempt $attempt/$Attempts. Retrying in $delaySeconds seconds..."
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
+}
+
 function Get-LatestReleaseZipUrl {
     param([string]$Repository)
 
-    $release = Invoke-RestMethod `
-        -Headers @{ "User-Agent" = "PageCountRIP-Installer" } `
-        -Uri "https://api.github.com/repos/$Repository/releases/latest"
+    try {
+        $release = Invoke-WithRetry -Description "GitHub latest-release lookup" -ScriptBlock {
+            Invoke-RestMethod `
+                -Headers @{ "User-Agent" = "PageCountRIP-Installer" } `
+                -Uri "https://api.github.com/repos/$Repository/releases/latest"
+        }
+    } catch {
+        Write-Warning "GitHub API latest-release lookup failed. Falling back to direct latest release download URL."
+        return "https://github.com/$Repository/releases/latest/download/PageCountRIP-windows.zip"
+    }
 
     $asset = $release.assets | Where-Object { $_.name -eq "PageCountRIP-windows.zip" } | Select-Object -First 1
     if (-not $asset) {
@@ -32,7 +61,9 @@ function Install-Release {
     $extractDir = Join-Path $tempRoot "extract"
 
     New-Item -ItemType Directory -Force -Path $tempRoot, $extractDir | Out-Null
-    Invoke-WebRequest -UseBasicParsing -Uri $ZipUrl -OutFile $zipPath
+    Invoke-WithRetry -Description "Release zip download" -ScriptBlock {
+        Invoke-WebRequest -UseBasicParsing -Uri $ZipUrl -OutFile $zipPath
+    } | Out-Null
     Expand-Archive -Force -Path $zipPath -DestinationPath $extractDir
 
     New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
