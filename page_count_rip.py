@@ -24,7 +24,8 @@ class PageCountRipApp(tk.Tk):
         super().__init__()
 
         self.title("Page Count RIP")
-        self.resizable(False, False)
+        self.resizable(True, True)
+        self.minsize(640, 500)
         self.configure(bg="#f4f6f8")
 
         self.job_id_var = tk.StringVar(value=DEFAULT_JOB_ID)
@@ -38,7 +39,7 @@ class PageCountRipApp(tk.Tk):
 
         self._configure_styles()
         self._build_ui()
-        self._center_window(width=600, height=500)
+        self._center_window(width=720, height=540)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(500, self.poll_status)
 
@@ -71,6 +72,18 @@ class PageCountRipApp(tk.Tk):
             font=("Segoe UI", 20, "bold"),
         )
         style.configure(
+            "ValueSmall.TLabel",
+            background="#ffffff",
+            foreground="#111827",
+            font=("Segoe UI", 12, "bold"),
+        )
+        style.configure(
+            "ValueBig.TLabel",
+            background="#ffffff",
+            foreground="#111827",
+            font=("Segoe UI", 24, "bold"),
+        )
+        style.configure(
             "Status.TLabel",
             background="#f4f6f8",
             foreground="#6b7280",
@@ -80,20 +93,32 @@ class PageCountRipApp(tk.Tk):
     def _build_ui(self) -> None:
         root = ttk.Frame(self, style="Root.TFrame", padding=16)
         root.grid(row=0, column=0, sticky="nsew")
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(4, weight=1)
 
         title = ttk.Label(root, text="Page Count RIP", style="Title.TLabel")
         title.grid(row=0, column=0, sticky="w", pady=(0, 12))
 
         panel = ttk.Frame(root, style="Panel.TFrame", padding=(18, 14))
         panel.grid(row=1, column=0, sticky="ew")
+        panel.columnconfigure(1, weight=1)
 
-        self._add_field(panel, row=0, label="Job ID", value_var=self.job_id_var)
+        self._add_field(
+            panel,
+            row=0,
+            label="Job ID",
+            value_var=self.job_id_var,
+            value_style="ValueSmall.TLabel",
+        )
         self._add_field(panel, row=1, label="Job State", value_var=self.job_state_var)
         self._add_field(
             panel,
             row=2,
             label="Job Page Count",
             value_var=self.total_pages_var,
+            value_style="ValueBig.TLabel",
         )
 
         status = ttk.Label(
@@ -128,7 +153,7 @@ class PageCountRipApp(tk.Tk):
             wrap=tk.WORD,
             font=("Consolas", 9),
         )
-        self.output_box.grid(row=4, column=0, sticky="ew")
+        self.output_box.grid(row=4, column=0, sticky="nsew")
         self.output_box.insert(tk.END, "Watching 192.168.100.200 as root/root. Start the print job normally; this window refreshes automatically.\n")
         self.output_box.configure(state=tk.DISABLED)
 
@@ -138,14 +163,27 @@ class PageCountRipApp(tk.Tk):
         row: int,
         label: str,
         value_var: tk.StringVar,
+        value_style: str = "Value.TLabel",
     ) -> None:
         label_widget = ttk.Label(parent, text=label, style="FieldLabel.TLabel")
-        label_widget.grid(row=row, column=0, sticky="w", pady=(0, 10))
+        label_widget.grid(row=row, column=0, sticky="nw", pady=(0, 10))
 
-        value_widget = ttk.Label(parent, textvariable=value_var, style="Value.TLabel")
-        value_widget.grid(row=row, column=1, sticky="e", padx=(28, 0), pady=(0, 10))
-
-        parent.columnconfigure(1, minsize=160)
+        value_widget = ttk.Label(
+            parent,
+            textvariable=value_var,
+            style=value_style,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        )
+        value_widget.grid(row=row, column=1, sticky="ew", padx=(28, 0), pady=(0, 10))
+        parent.bind(
+            "<Configure>",
+            lambda event, widget=value_widget: widget.configure(
+                wraplength=max(220, event.width - 180)
+            ),
+            add="+",
+        )
 
     def _center_window(self, width: int, height: int) -> None:
         self.update_idletasks()
@@ -156,7 +194,7 @@ class PageCountRipApp(tk.Tk):
         self.geometry(f"{width}x{height}+{left}+{top}")
 
     def set_job_status(self, job_id: str, total_pages_sent: int) -> None:
-        self.job_id_var.set(job_id or DEFAULT_JOB_ID)
+        self.job_id_var.set(_format_job_id_for_display(job_id))
         self.total_pages_var.set(str(max(0, total_pages_sent)))
 
     def test_ssh_status(self) -> None:
@@ -224,7 +262,7 @@ class PageCountRipApp(tk.Tk):
         self._poll_in_progress = False
         self.connection_status_var.set(f"{status} - next refresh in {self.poll_interval_seconds}s")
         if summary:
-            self.job_id_var.set(summary.job_id or DEFAULT_JOB_ID)
+            self.job_id_var.set(_format_job_id_for_display(summary.job_id))
             self.job_state_var.set(summary.job_state or DEFAULT_JOB_STATE)
         else:
             self.job_id_var.set(DEFAULT_JOB_ID)
@@ -345,6 +383,14 @@ def _format_unknown(value: object | None) -> str:
     if value is None:
         return "unknown"
     return str(value)
+
+
+def _format_job_id_for_display(job_id: str | None) -> str:
+    if not job_id:
+        return DEFAULT_JOB_ID
+    if len(job_id) <= 28:
+        return job_id
+    return f"{job_id[:12]}...{job_id[-8:]}"
 
 
 def _format_bool(value: bool | None) -> str:
