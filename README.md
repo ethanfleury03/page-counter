@@ -5,8 +5,9 @@ Minimal Windows GUI for showing live print-job page count status.
 Current prototype:
 
 - Displays `Job ID`
+- Displays `Job State`
 - Displays job page count from Kareela `pages current/total` lines
-- Tests read-only SSH status against one or two printer/controller Ethernet links
+- Auto-refreshes read-only SSH status against printer/controller Ethernet links
 - Runs only allowlisted read commands
 - Defaults to `192.168.100.200` with SSH `root/root`
 - Parses current controller state from discovered Memjet/Duraflex logs
@@ -20,7 +21,8 @@ python3 -m pip install -r requirements.txt
 python3 page_count_rip.py
 ```
 
-Then click `Test SSH Status`.
+Leave the window open before or during a print job. It refreshes automatically.
+Use `Refresh Now` only for an immediate manual check.
 
 ## Optional Printer SSH Override
 
@@ -91,8 +93,15 @@ The parser currently reads:
 - Live print/service state from `/var/log/pdl/pdl.log`
 - Job ID, job state, `pages current/total`, completed pages, and media length from `/var/log/kareela/kareela.log`
 
+Normal operator sequence:
+
+1. Open `PageCountRIP.exe`.
+2. Leave auto refresh enabled.
+3. Start the print job in the normal printer/RIP software.
+4. Watch `Job State` and `Job Page Count` update during and after the job.
+
 Next live test is to run another small job and confirm the UI tracks progress
-from `pages 0/1` to the final completed page count.
+from `pages 0/1` to the final completed page count without manually refreshing.
 
 The active job lock is stored in `last_job_state.json` on the print computer and
 is intentionally not committed. Delete that file to clear the lock manually.

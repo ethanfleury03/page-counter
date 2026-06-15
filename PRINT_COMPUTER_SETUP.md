@@ -77,10 +77,10 @@ python -m pip install -r requirements.txt
 python page_count_rip.py
 ```
 
-Expected result: a small "Page Count RIP" window opens and shows placeholder values.
-Click `Test SSH Status` to connect to `192.168.100.200` as `root/root` and run
-read-only status commands. The default status test tails likely printer logs
-discovered on the controller, then parses the useful fields into a summary:
+Expected result: a small "Page Count RIP" window opens and starts auto-refreshing.
+It connects to `192.168.100.200` as `root/root` and runs read-only status
+commands. The default status check tails likely printer logs discovered on the
+controller, then parses the useful fields into a summary:
 
 - `/pes_client.log`
 - `/var/log/pdl/pdl.log`
@@ -108,16 +108,16 @@ Copy-Item printer_config.example.json printer_config.json
 
 Edit `printer_config.json` with the printer Ethernet IP addresses and SSH credentials.
 
-Click `Test SSH Status`.
+Use `Refresh Now` for an immediate manual check.
 
 This test only checks TCP port 22, logs in over SSH, and runs allowlisted read
 commands from the config file. It does not send print jobs or fire hardware.
 
 If SSH succeeds, save the output so we can identify the real status/log paths.
 
-Best next test: click `Test SSH Status`, run a tiny scrap/calibration job with
-the normal printer software, then click `Test SSH Status` again. Confirm the job
-ID, state, `pages current/total`, and completed pages match the printer UI.
+Best next test: open the app, leave auto refresh enabled, run a tiny
+scrap/calibration job with the normal printer software, and confirm the job ID,
+state, `pages current/total`, and completed pages match the printer UI.
 
 The app stores the active Kareela job lock in `last_job_state.json`. Delete that
 file if the test machine needs a clean slate after an interrupted job.

@@ -6,11 +6,17 @@ import threading
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
-from printer_status import ConnectionResult, poll_all
+from printer_status import (
+    ConnectionResult,
+    PrinterStatusSummary,
+    load_poll_interval_seconds,
+    poll_all,
+)
 
 
 DEFAULT_JOB_ID = "--"
 DEFAULT_PAGE_COUNTER = "unknown"
+DEFAULT_JOB_STATE = "unknown"
 
 
 class PageCountRipApp(tk.Tk):
@@ -22,12 +28,19 @@ class PageCountRipApp(tk.Tk):
         self.configure(bg="#f4f6f8")
 
         self.job_id_var = tk.StringVar(value=DEFAULT_JOB_ID)
+        self.job_state_var = tk.StringVar(value=DEFAULT_JOB_STATE)
         self.total_pages_var = tk.StringVar(value=DEFAULT_PAGE_COUNTER)
         self.connection_status_var = tk.StringVar(value="Waiting for live data connection")
+        self.auto_refresh_var = tk.BooleanVar(value=True)
+        self.poll_interval_seconds = load_poll_interval_seconds()
+        self._poll_after_id: str | None = None
+        self._poll_in_progress = False
 
         self._configure_styles()
         self._build_ui()
-        self._center_window(width=560, height=430)
+        self._center_window(width=600, height=500)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.after(500, self.poll_status)
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self)
@@ -75,9 +88,10 @@ class PageCountRipApp(tk.Tk):
         panel.grid(row=1, column=0, sticky="ew")
 
         self._add_field(panel, row=0, label="Job ID", value_var=self.job_id_var)
+        self._add_field(panel, row=1, label="Job State", value_var=self.job_state_var)
         self._add_field(
             panel,
-            row=1,
+            row=2,
             label="Job Page Count",
             value_var=self.total_pages_var,
         )
@@ -94,20 +108,28 @@ class PageCountRipApp(tk.Tk):
 
         self.test_button = ttk.Button(
             button_row,
-            text="Test SSH Status",
-            command=self.test_ssh_status,
+            text="Refresh Now",
+            command=lambda: self.poll_status(manual=True),
         )
         self.test_button.grid(row=0, column=0, sticky="w")
+
+        self.auto_refresh_check = ttk.Checkbutton(
+            button_row,
+            text=f"Auto refresh every {self.poll_interval_seconds}s",
+            variable=self.auto_refresh_var,
+            command=self._on_auto_refresh_changed,
+        )
+        self.auto_refresh_check.grid(row=0, column=1, sticky="w", padx=(14, 0))
 
         self.output_box = scrolledtext.ScrolledText(
             root,
             height=10,
-            width=62,
+            width=68,
             wrap=tk.WORD,
             font=("Consolas", 9),
         )
         self.output_box.grid(row=4, column=0, sticky="ew")
-        self.output_box.insert(tk.END, "Default connection is 192.168.100.200 as root/root. Click Test SSH Status to parse live read-only controller status.\n")
+        self.output_box.insert(tk.END, "Watching 192.168.100.200 as root/root. Start the print job normally; this window refreshes automatically.\n")
         self.output_box.configure(state=tk.DISABLED)
 
     def _add_field(
@@ -138,13 +160,21 @@ class PageCountRipApp(tk.Tk):
         self.total_pages_var.set(str(max(0, total_pages_sent)))
 
     def test_ssh_status(self) -> None:
+        self.poll_status(manual=True)
+
+    def poll_status(self, manual: bool = False) -> None:
+        if self._poll_in_progress:
+            return
+        self._cancel_next_poll()
+        self._poll_in_progress = True
         self.test_button.configure(state=tk.DISABLED)
-        self.connection_status_var.set("Testing SSH connection...")
-        self._set_output("Testing read-only SSH status...\n")
-        thread = threading.Thread(target=self._test_ssh_status_worker, daemon=True)
+        self.connection_status_var.set("Reading printer status...")
+        if manual:
+            self._set_output("Refreshing read-only printer status...\n")
+        thread = threading.Thread(target=self._poll_status_worker, daemon=True)
         thread.start()
 
-    def _test_ssh_status_worker(self) -> None:
+    def _poll_status_worker(self) -> None:
         try:
             results = poll_all()
         except Exception as exc:
@@ -171,14 +201,16 @@ class PageCountRipApp(tk.Tk):
             lines.append("")
 
         status = f"{ok_count}/{len(results)} SSH connection(s) healthy"
+        summary = first_ok_result.summary if first_ok_result else None
         job_page_count = None
-        if first_ok_result and first_ok_result.summary:
-            job_page_count = _format_job_pages(first_ok_result.summary)
+        if summary:
+            job_page_count = _format_job_pages(summary)
         self.after(
             0,
             self._show_poll_results,
             status,
             "\n".join(lines).strip(),
+            summary,
             job_page_count,
         )
 
@@ -186,26 +218,68 @@ class PageCountRipApp(tk.Tk):
         self,
         status: str,
         output: str,
+        summary: PrinterStatusSummary | None,
         job_page_count: str | None,
     ) -> None:
-        self.connection_status_var.set(status)
+        self._poll_in_progress = False
+        self.connection_status_var.set(f"{status} - next refresh in {self.poll_interval_seconds}s")
+        if summary:
+            self.job_id_var.set(summary.job_id or DEFAULT_JOB_ID)
+            self.job_state_var.set(summary.job_state or DEFAULT_JOB_STATE)
+        else:
+            self.job_id_var.set(DEFAULT_JOB_ID)
+            self.job_state_var.set("not found yet")
         if job_page_count is not None:
             self.total_pages_var.set(job_page_count)
         else:
             self.total_pages_var.set("not found yet")
         self._set_output(output + "\n")
         self.test_button.configure(state=tk.NORMAL)
+        self._schedule_next_poll()
 
     def _show_poll_error(self, message: str) -> None:
-        self.connection_status_var.set("SSH status test failed")
+        self._poll_in_progress = False
+        self.connection_status_var.set("Printer status refresh failed")
         self._set_output(message + "\n")
         self.test_button.configure(state=tk.NORMAL)
+        self._schedule_next_poll()
 
     def _set_output(self, text: str) -> None:
         self.output_box.configure(state=tk.NORMAL)
         self.output_box.delete("1.0", tk.END)
         self.output_box.insert(tk.END, text)
         self.output_box.configure(state=tk.DISABLED)
+
+    def _schedule_next_poll(self) -> None:
+        if self.auto_refresh_var.get():
+            self._poll_after_id = self.after(
+                self.poll_interval_seconds * 1000,
+                self._run_scheduled_poll,
+            )
+
+    def _cancel_next_poll(self) -> None:
+        if self._poll_after_id is not None:
+            try:
+                self.after_cancel(self._poll_after_id)
+            except tk.TclError:
+                pass
+            self._poll_after_id = None
+
+    def _run_scheduled_poll(self) -> None:
+        self._poll_after_id = None
+        self.poll_status()
+
+    def _on_auto_refresh_changed(self) -> None:
+        if self.auto_refresh_var.get():
+            self.connection_status_var.set("Auto refresh enabled")
+            self.poll_status()
+        else:
+            self._cancel_next_poll()
+            self.connection_status_var.set("Auto refresh paused")
+
+    def _on_close(self) -> None:
+        self._cancel_next_poll()
+        self.destroy()
 
 
 def main() -> None:
