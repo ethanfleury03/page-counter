@@ -43,7 +43,6 @@ jobs:
           Copy-Item install_page_counter.ps1 release/
           Copy-Item update_page_counter.bat release/
           Copy-Item update_page_counter.ps1 release/
-          Copy-Item PageCountRIP-Setup.bat release/
           Copy-Item PRINT_COMPUTER_SETUP.md release/
           Compress-Archive -Force -Path release/* -DestinationPath PageCountRIP-windows.zip
 

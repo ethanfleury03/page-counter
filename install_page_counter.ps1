@@ -36,14 +36,22 @@ function Install-Release {
     Expand-Archive -Force -Path $zipPath -DestinationPath $extractDir
 
     New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
-    Copy-Item -Force -Path (Join-Path $extractDir "PageCountRIP.exe") -Destination $TargetDir
-    Copy-Item -Force -Path (Join-Path $extractDir "printer_config.example.json") -Destination $TargetDir
-    Copy-Item -Force -Path (Join-Path $extractDir "install_page_counter.bat") -Destination $TargetDir
-    Copy-Item -Force -Path (Join-Path $extractDir "install_page_counter.ps1") -Destination $TargetDir
-    Copy-Item -Force -Path (Join-Path $extractDir "update_page_counter.bat") -Destination $TargetDir
-    Copy-Item -Force -Path (Join-Path $extractDir "update_page_counter.ps1") -Destination $TargetDir
-    Copy-Item -Force -Path (Join-Path $extractDir "PageCountRIP-Setup.bat") -Destination $TargetDir
-    Copy-Item -Force -Path (Join-Path $extractDir "PRINT_COMPUTER_SETUP.md") -Destination $TargetDir
+    $files = @(
+        "PageCountRIP.exe",
+        "printer_config.example.json",
+        "install_page_counter.bat",
+        "install_page_counter.ps1",
+        "update_page_counter.bat",
+        "update_page_counter.ps1",
+        "PRINT_COMPUTER_SETUP.md"
+    )
+
+    foreach ($file in $files) {
+        $source = Join-Path $extractDir $file
+        if (Test-Path $source) {
+            Copy-Item -Force -Path $source -Destination $TargetDir
+        }
+    }
 
     $configPath = Join-Path $TargetDir "printer_config.json"
     if (-not (Test-Path $configPath)) {

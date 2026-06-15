@@ -59,7 +59,6 @@ function Install-Release {
         "install_page_counter.ps1",
         "update_page_counter.bat",
         "update_page_counter.ps1",
-        "PageCountRIP-Setup.bat",
         "PRINT_COMPUTER_SETUP.md"
     )
 
