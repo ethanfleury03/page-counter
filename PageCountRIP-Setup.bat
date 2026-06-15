@@ -38,7 +38,7 @@ function Invoke-WithRetry {
             }
 
             $delaySeconds = 2 * $attempt
-            Write-Warning "$Description failed on attempt $attempt/$Attempts. Retrying in $delaySeconds seconds..."
+            Write-Warning "${Description} failed on attempt ${attempt}/${Attempts}. Retrying in ${delaySeconds} seconds..."
             Start-Sleep -Seconds $delaySeconds
         }
     }
@@ -131,7 +131,8 @@ function Update-ExistingConfig {
         }
 
         if ($changed) {
-            $config | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 -Path $ConfigPath
+            $json = ($config | ConvertTo-Json -Depth 8) + [Environment]::NewLine
+            [System.IO.File]::WriteAllText($ConfigPath, $json, [System.Text.UTF8Encoding]::new($false))
         }
     } catch {
         Write-Warning "Could not update existing printer_config.json defaults: $($_.Exception.Message)"

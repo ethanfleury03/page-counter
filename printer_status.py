@@ -108,7 +108,7 @@ def load_config(path: Path = CONFIG_PATH) -> list[ConnectionConfig]:
     if not path.exists():
         return [_parse_connection(item) for item in DEFAULT_CONNECTIONS]
 
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = _read_json_file(path)
     connections = data.get("connections", [])
     if not isinstance(connections, list) or not connections:
         raise ValueError("printer_config.json must contain at least one connection.")
@@ -131,7 +131,7 @@ def normalize_poll_interval_seconds(path: Path = CONFIG_PATH) -> None:
         return
 
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = _read_json_file(path)
     except (OSError, json.JSONDecodeError):
         return
 
@@ -146,6 +146,10 @@ def normalize_poll_interval_seconds(path: Path = CONFIG_PATH) -> None:
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     except OSError:
         pass
+
+
+def _read_json_file(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def poll_connection(connection: ConnectionConfig) -> ConnectionResult:
