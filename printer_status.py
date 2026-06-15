@@ -22,6 +22,7 @@ JOB_STATE_PATH = Path("last_job_state.json")
 CONNECT_TIMEOUT_SECONDS = 5
 COMMAND_TIMEOUT_SECONDS = 8
 DEFAULT_POLL_INTERVAL_SECONDS = 1
+FORCED_POLL_INTERVAL_SECONDS = 1
 DEFAULT_CONNECTIONS = (
     {
         "name": "Printer Controller",
@@ -120,16 +121,31 @@ def poll_all(path: Path = CONFIG_PATH) -> list[ConnectionResult]:
 
 
 def load_poll_interval_seconds(path: Path = CONFIG_PATH) -> int:
+    normalize_poll_interval_seconds(path)
+    return FORCED_POLL_INTERVAL_SECONDS
+
+
+def normalize_poll_interval_seconds(path: Path = CONFIG_PATH) -> None:
+    """Keep older printer_config.json files from preserving the former 5s poll."""
     if not path.exists():
-        return DEFAULT_POLL_INTERVAL_SECONDS
+        return
 
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        value = int(data.get("poll_interval_seconds", DEFAULT_POLL_INTERVAL_SECONDS))
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
-        return DEFAULT_POLL_INTERVAL_SECONDS
+    except (OSError, json.JSONDecodeError):
+        return
 
-    return max(1, min(60, value))
+    if not isinstance(data, dict):
+        return
+
+    if data.get("poll_interval_seconds") == FORCED_POLL_INTERVAL_SECONDS:
+        return
+
+    data["poll_interval_seconds"] = FORCED_POLL_INTERVAL_SECONDS
+    try:
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def poll_connection(connection: ConnectionConfig) -> ConnectionResult:

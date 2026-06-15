@@ -22,12 +22,41 @@ $ErrorActionPreference = "Stop"
 $InstallDir = Join-Path $env:LOCALAPPDATA "Arrow\PageCountRIP"
 $Repo = "ethanfleury03/page-counter"
 
+function Invoke-WithRetry {
+    param(
+        [scriptblock]$ScriptBlock,
+        [string]$Description,
+        [int]$Attempts = 3
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            return & $ScriptBlock
+        } catch {
+            if ($attempt -eq $Attempts) {
+                throw
+            }
+
+            $delaySeconds = 2 * $attempt
+            Write-Warning "$Description failed on attempt $attempt/$Attempts. Retrying in $delaySeconds seconds..."
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
+}
+
 function Get-LatestReleaseZipUrl {
     param([string]$Repository)
 
-    $release = Invoke-RestMethod `
-        -Headers @{ "User-Agent" = "PageCountRIP-Setup" } `
-        -Uri "https://api.github.com/repos/$Repository/releases/latest"
+    try {
+        $release = Invoke-WithRetry -Description "GitHub latest-release lookup" -ScriptBlock {
+            Invoke-RestMethod `
+                -Headers @{ "User-Agent" = "PageCountRIP-Setup" } `
+                -Uri "https://api.github.com/repos/$Repository/releases/latest"
+        }
+    } catch {
+        Write-Warning "GitHub API latest-release lookup failed. Falling back to direct latest release download URL."
+        return "https://github.com/$Repository/releases/latest/download/PageCountRIP-windows.zip"
+    }
 
     $asset = $release.assets | Where-Object { $_.name -eq "PageCountRIP-windows.zip" } | Select-Object -First 1
     if (-not $asset) {
@@ -48,7 +77,9 @@ function Install-Release {
     $extractDir = Join-Path $tempRoot "extract"
 
     New-Item -ItemType Directory -Force -Path $tempRoot, $extractDir | Out-Null
-    Invoke-WebRequest -UseBasicParsing -Uri $ZipUrl -OutFile $zipPath
+    Invoke-WithRetry -Description "Release zip download" -ScriptBlock {
+        Invoke-WebRequest -UseBasicParsing -Uri $ZipUrl -OutFile $zipPath
+    } | Out-Null
     Expand-Archive -Force -Path $zipPath -DestinationPath $extractDir
 
     New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
@@ -72,9 +103,39 @@ function Install-Release {
     $configPath = Join-Path $TargetDir "printer_config.json"
     if (-not (Test-Path $configPath)) {
         Copy-Item -Path (Join-Path $TargetDir "printer_config.example.json") -Destination $configPath
+    } else {
+        Update-ExistingConfig -ConfigPath $configPath
     }
 
     Remove-Item -Recurse -Force $tempRoot
+}
+
+function Update-ExistingConfig {
+    param([string]$ConfigPath)
+
+    try {
+        $config = Get-Content -Raw -Path $ConfigPath | ConvertFrom-Json
+        $changed = $false
+
+        if (-not $config.PSObject.Properties.Name.Contains("poll_interval_seconds") -or [int]$config.poll_interval_seconds -ne 1) {
+            $config | Add-Member -NotePropertyName "poll_interval_seconds" -NotePropertyValue 1 -Force
+            $changed = $true
+        }
+
+        if ($config.connections) {
+            $connections = @($config.connections | Where-Object { $_.host -ne "192.168.100.201" })
+            if ($connections.Count -ne @($config.connections).Count) {
+                $config.connections = $connections
+                $changed = $true
+            }
+        }
+
+        if ($changed) {
+            $config | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 -Path $ConfigPath
+        }
+    } catch {
+        Write-Warning "Could not update existing printer_config.json defaults: $($_.Exception.Message)"
+    }
 }
 
 function New-DesktopShortcut {
