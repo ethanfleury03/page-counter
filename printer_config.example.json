@@ -30,20 +30,6 @@
         "/var/log/kirrawee/kirrawee.log",
         "/var/log/messages"
       ]
-    },
-    {
-      "name": "Printer Ethernet 2",
-      "host": "192.168.100.201",
-      "port": 22,
-      "username": "root",
-      "password": "root",
-      "password_env": "PAGE_COUNT_RIP_PRINTER_2_PASSWORD",
-      "status_commands": [
-        "hostname",
-        "date",
-        "ls /var/log"
-      ],
-      "log_paths": []
     }
   ]
 }
