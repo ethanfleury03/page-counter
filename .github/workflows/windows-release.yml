@@ -43,6 +43,7 @@ jobs:
           Copy-Item install_page_counter.ps1 release/
           Copy-Item update_page_counter.bat release/
           Copy-Item update_page_counter.ps1 release/
+          Copy-Item PageCountRIP-Setup.bat release/
           Copy-Item PRINT_COMPUTER_SETUP.md release/
           Compress-Archive -Force -Path release/* -DestinationPath PageCountRIP-windows.zip
 
@@ -56,4 +57,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: PageCountRIP-windows.zip
+          files: |
+            PageCountRIP-windows.zip
+            PageCountRIP-Setup.bat

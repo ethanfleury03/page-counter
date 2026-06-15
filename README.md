@@ -50,11 +50,18 @@ dist\PageCountRIP.exe
 
 ## Install On A Printer Computer
 
-The preferred field install is the packaged Windows release. It installs into the
-current user's app data folder, preserves machine-specific config on updates, and
-creates a desktop shortcut.
+The easiest field install is the one-file setup script from the latest GitHub
+release:
 
-On the printer computer, run this in PowerShell:
+```text
+PageCountRIP-Setup.bat
+```
+
+Download it from the latest release, run it, and it installs the app into the
+current user's app data folder, preserves machine-specific config on updates,
+and creates a desktop shortcut.
+
+If you only have PowerShell available, this does the same thing:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force

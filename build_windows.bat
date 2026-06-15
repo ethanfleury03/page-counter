@@ -20,6 +20,7 @@ copy /Y install_page_counter.bat dist\install_page_counter.bat >nul
 copy /Y install_page_counter.ps1 dist\install_page_counter.ps1 >nul
 copy /Y update_page_counter.bat dist\update_page_counter.bat >nul
 copy /Y update_page_counter.ps1 dist\update_page_counter.ps1 >nul
+copy /Y PageCountRIP-Setup.bat dist\PageCountRIP-Setup.bat >nul
 copy /Y PRINT_COMPUTER_SETUP.md dist\PRINT_COMPUTER_SETUP.md >nul
 
 echo.

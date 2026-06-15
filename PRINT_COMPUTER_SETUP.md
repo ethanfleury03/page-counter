@@ -16,7 +16,19 @@ Use this checklist for the first install on the computer connected to the printe
 Use this path for normal printer computers. It does not require Python on the
 printer computer.
 
-Open PowerShell and run:
+Download and run this file from the latest GitHub release:
+
+```text
+PageCountRIP-Setup.bat
+```
+
+Release page:
+
+```text
+https://github.com/ethanfleury03/page-counter/releases/latest
+```
+
+If PowerShell is easier than downloading the setup file manually, run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
