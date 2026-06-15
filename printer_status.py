@@ -21,7 +21,7 @@ EXAMPLE_CONFIG_PATH = Path("printer_config.example.json")
 JOB_STATE_PATH = Path("last_job_state.json")
 CONNECT_TIMEOUT_SECONDS = 5
 COMMAND_TIMEOUT_SECONDS = 8
-DEFAULT_POLL_INTERVAL_SECONDS = 5
+DEFAULT_POLL_INTERVAL_SECONDS = 1
 DEFAULT_CONNECTIONS = (
     {
         "name": "Printer Controller",
@@ -129,7 +129,7 @@ def load_poll_interval_seconds(path: Path = CONFIG_PATH) -> int:
     except (OSError, json.JSONDecodeError, TypeError, ValueError):
         return DEFAULT_POLL_INTERVAL_SECONDS
 
-    return max(2, min(60, value))
+    return max(1, min(60, value))
 
 
 def poll_connection(connection: ConnectionConfig) -> ConnectionResult:

@@ -1,5 +1,5 @@
 {
-  "poll_interval_seconds": 5,
+  "poll_interval_seconds": 1,
   "connections": [
     {
       "name": "Printer Ethernet 1",

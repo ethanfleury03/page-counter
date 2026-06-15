@@ -56,9 +56,39 @@ function Install-Release {
     $configPath = Join-Path $TargetDir "printer_config.json"
     if (-not (Test-Path $configPath)) {
         Copy-Item -Path (Join-Path $TargetDir "printer_config.example.json") -Destination $configPath
+    } else {
+        Update-ExistingConfig -ConfigPath $configPath
     }
 
     Remove-Item -Recurse -Force $tempRoot
+}
+
+function Update-ExistingConfig {
+    param([string]$ConfigPath)
+
+    try {
+        $config = Get-Content -Raw -Path $ConfigPath | ConvertFrom-Json
+        $changed = $false
+
+        if (-not $config.PSObject.Properties.Name.Contains("poll_interval_seconds") -or [int]$config.poll_interval_seconds -ne 1) {
+            $config | Add-Member -NotePropertyName "poll_interval_seconds" -NotePropertyValue 1 -Force
+            $changed = $true
+        }
+
+        if ($config.connections) {
+            $connections = @($config.connections | Where-Object { $_.host -ne "192.168.100.201" })
+            if ($connections.Count -ne @($config.connections).Count) {
+                $config.connections = $connections
+                $changed = $true
+            }
+        }
+
+        if ($changed) {
+            $config | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 -Path $ConfigPath
+        }
+    } catch {
+        Write-Warning "Could not update existing printer_config.json defaults: $($_.Exception.Message)"
+    }
 }
 
 function New-DesktopShortcut {
